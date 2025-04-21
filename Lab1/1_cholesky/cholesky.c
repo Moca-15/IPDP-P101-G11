@@ -81,13 +81,7 @@ void cholesky(int n) {
         U[i][i] = sqrt(A[i][i]-tmp);
         // Calculate non-diagonal elements
         for(j=i+1;j<n;j++) {
-	    double sum = 0;
-	    for(k=0;k<=i-1;k++){
-		sum += U[k][j]*U[k][i];
-	    }
-	    sum = A[j][i] - sum;
-	    double u_ij = sum / U[i][i];
-            U[i][j] = u_ij;
+            // TODO U[i][j] = 
         }
     }
     end = omp_get_wtime();
@@ -98,11 +92,7 @@ void cholesky(int n) {
      * 3. Calculate L from U'
      */
     start = omp_get_wtime();
-    for(i=0;i<n;i++){
-	for(j=0;j<n;j++){
-		L[j][i] = U[i][j];
-	}
-    }
+    // TODO L=U'
     end = omp_get_wtime();
     printf("L=U': %f\n", end-start);
     
@@ -111,11 +101,7 @@ void cholesky(int n) {
      * 4. Compute B=LU
      */
     start = omp_get_wtime();
-    for(i=0;i<n;i++){
-	for(j=0;j<n;j++){
-		B[i][j] = L[i][j] * U[j][i] + L[i+1][j] * U[j][i+1] + L[i+2][j] * U[j][i+2];
-	}
-    }
+    // TODO B=LU
     end = omp_get_wtime();
     printf("B=LU: %f\n", end-start);
 
