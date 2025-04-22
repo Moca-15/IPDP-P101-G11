@@ -65,7 +65,7 @@ int main()
     // Assign x values to the right histogram bucket -- sequential
     ////////////////////////////////////////////////////////////////
 
-    printf("Sequential");
+    printf("Sequential:\n");
 
     initHist(hist);
 
@@ -87,19 +87,123 @@ int main()
 
     analyzeResults(time, hist);
 
+
+    printf("#### PARALLELIZATIONS ####\n");
+
+
     ////////////////////////////////////////////////////////////////
     // Assign x values to the right histogram bucket -- critical
     ////////////////////////////////////////////////////////////////
+
+    printf("Critical:\n");
+
+    initHist(hist); // init histogram again
+
+    time = omp_get_wtime();
+
+    #pragma omp parallel for
+	for (int i = 0; i < num_trials; i++)
+	{
+ 	    long ival = (long)(x[i] - xlow) / bucket_width;
+	    #pragma omp critical
+	    hist[ival]++;
+	}
+
+    #ifdef DEBUG
+        printf("i = %d,  xi = %f, ival = %d\n", i, (float)x[i], ival);
+    #endif
+
+    time = omp_get_wtime() - time;
+    analyzeResults(time, hist);
+
+    ////////////////////////////////////////////////////////////////
+    // Assign x values to the right histogram bucket -- atomic
+    ////////////////////////////////////////////////////////////////
+
+    printf("Atomic:\n");
+
+    initHist(hist); // init histogram again
+    time = omp_get_wtime();
+
+    #pragma omp parallel for
+	for (int i = 0; i < num_trials; i++)
+	{
+ 	    long ival = (long)(x[i] - xlow) / bucket_width;
+	    #pragma omp atomic
+	    hist[ival]++;
+	}
+
+    #ifdef DEBUG
+        printf("i = %d,  xi = %f, ival = %d\n", i, (float)x[i], ival);
+    #endif
+
+    time = omp_get_wtime() - time;
+    analyzeResults(time, hist);
 
 
     ////////////////////////////////////////////////////////////////
     // Assign x values to the right histogram bucket -- locks
     ////////////////////////////////////////////////////////////////
 
+    printf("Locks:\n");
+
+    initHist(hist); // init histogram again
+    time = omp_get_wtime();
+    omp_lock_t locks[num_buckets];
+
+    // init locks (1 for each bucket)
+    #pragma omp parallel for
+	for (int i = 0; i < num_buckets; i++)
+	    omp_init_lock(&locks[i]);
+
+    // parallelize loop
+    #pragma omp parallel for 
+	for (int i = 0; i < num_trials; i++)
+	{
+ 	    long ival = (long)(x[i] - xlow) / bucket_width;
+	    omp_set_lock(&locks[ival]);
+	    hist[ival]++;
+	    omp_unset_lock(&locks[ival]);
+	}
+
+    #ifdef DEBUG
+        printf("i = %d,  xi = %f, ival = %d\n", i, (float)x[i], ival);
+    #endif
+
+    // destroy locks
+    #pragma omp parallel for
+	for (int i = 0; i < num_buckets; i++)
+	    omp_destroy_lock(&locks[i]);
+
+
+    time = omp_get_wtime() - time;
+    analyzeResults(time, hist);
+
 
     ////////////////////////////////////////////////////////////////
     // Assign x values to the right histogram bucket -- reduction
     ////////////////////////////////////////////////////////////////
+
+    printf("Reducion: \n");
+
+    initHist(hist); // init histogram again
+    time = omp_get_wtime();
+
+    #pragma omp parallel for reduction(+:hist)
+	for (int i = 0; i < num_trials; i++)
+	{
+	    long ival = (long)(x[i] - xlow) / bucket_width;
+	    hist[ival]++;
+
+	}
+
+    #ifdef DEBUG
+        printf("i = %d,  xi = %f, ival = %d\n", i, (float)x[i], ival);
+    #endif
+
+    time = omp_get_wtime() - time;
+    analyzeResults(time, hist);
+
 
 
     free(x);
