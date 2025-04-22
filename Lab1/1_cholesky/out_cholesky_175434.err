@@ -1,0 +1,23 @@
+cholesky.c: In function ‘cholesky_openmp’:
+cholesky.c:113:22: error: invalid controlling predicate
+             for(i=k; i<k+strip_size && i<n; i++){
+                      ^
+cholesky.c:114:26: error: invalid controlling predicate
+                 for(j=l; j<l+strip_size && j<n; j++){
+                          ^
+cholesky.c:133:26: error: invalid controlling predicate
+                 for(i=k; i<k+tilesize && i<n; i++){
+                          ^
+cholesky.c:134:30: error: invalid controlling predicate
+                     for(j=l; j<l+tilesize && j<n; j++){
+                              ^
+cholesky.c:135:34: error: invalid controlling predicate
+                         for(h=m; h<m+tilesize && h<n; h++) B[i][j] += L[i][k] * U[k][j];
+                                  ^
+cholesky.c:152:22: error: invalid controlling predicate
+             for(i=k; i<k+strip_size && i<n; i++){
+                      ^
+cholesky.c:153:26: error: invalid controlling predicate
+                 for(j=l; j<l+strip_size && j<n; j++){
+                          ^
+make: *** [Makefile:7: all] Error 1

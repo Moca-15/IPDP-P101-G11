@@ -1,0 +1,1 @@
+/var/spool/slurmd/job175441/slurm_script: line 15: 111548 Segmentation fault      (core dumped) ./cholesky 3000

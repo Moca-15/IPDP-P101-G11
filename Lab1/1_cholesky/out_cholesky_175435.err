@@ -1,0 +1,5 @@
+cholesky.c: In function ‘cholesky_openmp’:
+cholesky.c:137:13: error: initializer expression refers to iteration variable ‘i’
+     #pragma omp parallel for collapse(2)
+             ^~~
+make: *** [Makefile:7: all] Error 1

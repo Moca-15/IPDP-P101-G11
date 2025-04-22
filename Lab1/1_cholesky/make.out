@@ -1,0 +1,14 @@
+gcc main.c cholesky.c -o cholesky -O2 -fopenmp -march=native -lm -std=c99
+gcc main.c cholesky.c -o cholesky -O2 -fopenmp -march=native -lm -std=c99
+gcc main.c cholesky.c -o cholesky -O2 -fopenmp -march=native -lm -std=c99
+gcc main.c cholesky.c -o cholesky -O2 -fopenmp -march=native -lm -std=c99
+gcc main.c cholesky.c -o cholesky -O2 -fopenmp -march=native -lm -std=c99
+gcc main.c cholesky.c -o cholesky -O2 -fopenmp -march=native -lm -std=c99
+gcc main.c cholesky.c -o cholesky -O2 -fopenmp -march=native -lm -std=c99
+gcc main.c cholesky.c -o cholesky -O2 -fopenmp -march=native -lm -std=c99
+gcc main.c cholesky.c -o cholesky -O2 -fopenmp -march=native -lm -std=c99
+gcc main.c cholesky.c -o cholesky -O2 -fopenmp -march=native -lm -std=c99
+gcc main.c cholesky.c -o cholesky -O2 -fopenmp -march=native -lm -std=c99
+gcc main.c cholesky.c -o cholesky -O2 -fopenmp -march=native -lm -std=c99
+gcc main.c cholesky.c -o cholesky -O2 -fopenmp -march=native -lm -std=c99
+gcc main.c cholesky.c -o cholesky -O2 -fopenmp -march=native -lm -std=c99

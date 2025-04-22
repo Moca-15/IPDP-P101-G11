@@ -15,6 +15,7 @@ void cholesky_openmp(int n) {
     double** U;
     double** B;
     double tmp;
+    double * diagonal_tmp;
     double start, end;
     int cnt;
     
@@ -26,12 +27,15 @@ void cholesky_openmp(int n) {
     L = (double **)malloc(n * sizeof(double *)); 
     U = (double **)malloc(n * sizeof(double *)); 
     B = (double **)malloc(n * sizeof(double *)); 
+    diagonal_tmp = (double*)malloc(sizeof(double)*n);
+
     #pragma omp parallel for
     for(i=0; i<n; i++) {
          A[i] = (double *)malloc(n * sizeof(double)); 
          L[i] = (double *)malloc(n * sizeof(double)); 
          U[i] = (double *)malloc(n * sizeof(double)); 
          B[i] = (double *)malloc(n * sizeof(double)); 
+        diagonal_tmp[i] = 0;
     }
 
     srand(time(NULL));
@@ -43,12 +47,12 @@ void cholesky_openmp(int n) {
         }
     }
 
-    #pragma omp parallel for collapse(2)
-    for (int i = 0; i < n; i++) {
-        for (int j = i; j < n; j++) {
+    #pragma omp parallel for
+    for (i = 0; i < n; i++) {
+        for (j = i; j < n; j++) {
             if (i == j) {
                 A[i][j] += n;
-            } else {
+            } else{
                 A[i][j] += ((double) rand() / RAND_MAX) * sqrt(n);
                 A[j][i] = A[i][j];
             }
@@ -69,26 +73,29 @@ void cholesky_openmp(int n) {
     /**
      * 2. Compute Cholesky factorization for U
      */
+    
     start = omp_get_wtime();
-    #pragma omp parallel for collapse(2)
+    #pragma omp parallel for
     for(i=0; i<n; i++) {
         // Calculate diagonal elements
-        tmp = 0.0;
         for(k=0;k<i;k++) {
-            tmp += U[k][i]*U[k][i];
+            diagonal_tmp[i] += U[k][i]*U[k][i];
         }
-        U[i][i] = sqrt(A[i][i]-tmp);
-    }  
+    } 
 
+    #pragma omp parallel for
+    for(i=0; i<n; i++)  U[i][i] = sqrt(A[i][i]-diagonal_tmp[i]);
+    
+    free(diagonal_tmp);
     // Calculate non-diagonal elements   
     #pragma omp prallel for collapse(3)
     for(i=0; i<n; i++) {
         for(j=i+1;j<n;j++) {
-            tmp = 0.0
+            tmp = 0.0;
             for(k=0;k<i;k++) {
                 tmp += U[k][i]*U[j][i];
             }
-            U[i][j] = ( A[j][i] - tmp ) / U[i][i]
+            U[i][j] = ( A[j][i] - tmp ) / U[i][i];
         }
     }
     end = omp_get_wtime();
@@ -99,15 +106,10 @@ void cholesky_openmp(int n) {
      */
     start = omp_get_wtime();
 
-    int strip_size = n/4
-    #pragma omp parallel collapse(4)
-    for(k=0; k<n; k+=strip_size){
-        for(l=0; l<n; l+=strip_size){
-            for(i=k; i<k+strip_size && i<n; i++){
-                for(j=l; j<l+strip_size && j<n; j++){
-                    L[i][j] = U[j][i];
-                }
-            }   
+    #pragma omp parallel for
+    for(i=0; i<n; i++){
+        for(j=i; j<n; j++){
+            L[i][j] = U[j][i];
         }
     }
 
@@ -118,17 +120,10 @@ void cholesky_openmp(int n) {
      * 4. Compute B=LU
      */
     start = omp_get_wtime();
-    int tilesize = n/4
-    #pragma omp parallel for collapse(6)
-    for(k=0; k<n; k+=tilesize){
-        for(l=0; l<n; l+=tilesize){
-            for(m=0; m<n; m+=tilesize){
-                for(i=k; i<k+tilesize && i<n; i++){
-                    for(j=l; j<l+tilesize && j<n; j++){
-                        for(h=m; h<m+tilesize && h<n; h++) B[i][j] += L[i][k] * U[k][j];
-                    }
-                }
-            }
+    #pragma omp parallel for collapse(3)
+    for(i=0; i<n; i++){
+        for(j=0; j<n; j++){
+            for(k=0; k<n; k++) B[i][j] += L[i][k] * U[k][j];
         }
     }
 
@@ -139,15 +134,11 @@ void cholesky_openmp(int n) {
      * 5. Check if all elements of A and B have a difference smaller than 0.001%
      */
     cnt=0;
-    #pragma omp parallel collapse(4)
-    for(k=0; k<n; k+=strip_size){
-        for(l=0; l<n; l+=strip_size){
-            for(i=k; i<k+strip_size && i<n; i++){
-                for(j=l; j<l+strip_size && j<n; j++){
-                    double diff = A[i][j] - B[i][j];
-                    if(sqrt(diff*diff) > 0.001) cnt++
-                }
-            }   
+    #pragma omp parallel for collapse(2)
+     for(i=0; i<n; i++){
+        for(j=0; j<n; j++){
+            double diff = A[i][j] - B[i][j];
+            if(sqrt(diff*diff) > 0.001) cnt++;
         }
     }
     if(cnt != 0) {
@@ -242,11 +233,11 @@ void cholesky(int n) {
         
         //TODO U=...
         for(j=i+1;j<n;j++) {
-            tmp = 0.0
+            tmp = 0.0;
             for(k=0;k<i;k++) {
                 tmp += U[k][i]*U[j][i];
             }
-            U[i][j] = ( A[j][i] - tmp ) / U[i][i]
+            U[i][j] = ( A[j][i] - tmp ) / U[i][i];
         }
         //DONE
     }
@@ -291,7 +282,7 @@ void cholesky(int n) {
     for(i=0; i<n; i++){
         for(j=i; j<n; j++){
             double diff = A[i][j] - B[i][j];
-            if(sqrt(diff*diff) > 0.001) cnt++
+            if(sqrt(diff*diff) > 0.001) cnt++;
         }
     }
     if(cnt != 0) {

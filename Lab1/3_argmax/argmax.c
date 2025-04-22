@@ -1,0 +1,117 @@
+#include <stdlib.h>
+#include <stdio.h>
+#include <math.h>
+#include <omp.h>
+
+#define PI 3.14159265359 
+
+int nthreads, K;
+double time;
+double seq_m, par_m, rec_m, task_m;
+int seq_idx_m, par_idx_m, rec_idx_m, task_idx_m;
+
+void initialize(double *v, int N){
+    for(int i=0; i<N; i++){
+        v[i] = (1-pow(0.5 - (double)i / (double)N, 2)) * cos(2*PI*100* (i-0.5)/N);
+    }
+}
+
+// computes the argmax sequentially with a for loop
+void argmax_seq(double *v, int N, double *m, int *idx_m) {
+    *m = v[0];
+    for(int i=0; i<N; i++){
+       if(*m<v[i]){
+        *m = v[i];
+        *idx_m = i;
+       }
+    }
+}
+
+// computes the argmax in parallel with a for loop
+ void argmax_par(double *v, int N, double *m, int *idx_m) {
+    *m = v[0];
+    #pragma omp parallel for
+    for(int i=0; i<N; i++){
+        #pragma omp critical{
+            if(*m<v[i]){
+            *m = v[i];
+            *idx_m = i;
+            }
+        }
+    }
+}
+
+ // computes the argmax recursively and sequentially
+ void argmax_recursive(double *v, int N, double *m, int *idx_m, int K) {
+    if(N<K) {
+        argmax_seq(v,N,m,idx_m);
+        return;
+    }   
+
+    double aux_m_1, aux_m_2;
+    int aux_idx_1, aux_idx_2;
+
+    argmax_recursive(v,N/2, &aux_m_1, &aux_idx_1, K);
+    argmax_recursive(&v[N/2],(N%2 == 0)? N/2 : N/2 + 1, &aux_m_2, &aux_idx_2, K);
+    *m = (aux_m_1 > aux_m_2) ? aux_m_1 : aux_m_2;
+    *idx_m = (aux_idx_1 > aux_idx_2) ? aux_idx_1 : aux_idx_2;
+}
+
+// computes the argmax recursively and in parallel using tasks
+void argmax_recursive_tasks(double *v, int N, double *m, int *idx_m, int K) {
+    if(N<K) {
+        argmax_seq(v,N,m,idx_m);
+        return;
+    }   
+
+    double aux_m_1, aux_m_2;
+    int aux_idx_1, aux_idx_2;
+
+    #pragma omp parallel{
+
+        #pragma omp task {
+        argmax_recursive(v,N/2, &aux_m_1, &aux_idx_1, K);
+        }
+        
+        #pragma omp task {
+        argmax_recursive(&v[N/2],(N%2 == 0)? N/2 : N/2 + 1, &aux_m_2, &aux_idx_2, K);
+        }
+
+        *m = (aux_m_1 > aux_m_2) ? aux_m_1 : aux_m_2;
+        *idx_m = (aux_idx_1 > aux_idx_2) ? aux_idx_1 : aux_idx_2;
+    }
+
+}
+
+int main(int argc, char* argv[]){
+    double N = 4096 * 4096;
+    nthreads = atoi(argv[1]);
+    K = atoi(argv[2]);
+    omp_set_num_threads(nthreads)
+    double *v = malloc(sizeof(double) * N);
+    initialize(v,N);
+
+    time = omp_get_wtime();
+    argmax_seq(v,N, &seq_m, &seq_idx_m);
+    time = omp_get_wtime() - time;
+    printf("Sequential for \targmax: m = %lf, idx_m=%d, time=%lfs", seq_m, seq_idx_m, time);
+
+
+    time = omp_get_wtime();
+    argmax_par(v,N, &par_m, &par_idx_m);
+    time = omp_get_wtime() - time;
+    printf("Parallel for \targmax: m = %lf, idx_m=%d, time=%lfs", par_m, par_idx_m, time);
+
+
+    time = omp_get_wtime();
+    argmax_recursive(v,N, &rec_m, &rec_idx_m, K);
+    time = omp_get_wtime() - time;
+    printf("Sequential for \targmax: m = %lf, idx_m=%d, time=%lfs", rec_m, rec_idx_m, time);
+
+    time = omp_get_wtime();
+    argmax_recursive_tasks(v,N, &task_m, &task_idx_m, K);
+    time = omp_get_wtime() - time;
+    printf("Sequential for \targmax: m = %lf, idx_m=%d, time=%lfs", task_m, task_idx_m, time);
+
+
+}
