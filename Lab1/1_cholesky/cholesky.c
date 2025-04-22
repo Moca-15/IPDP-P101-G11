@@ -35,7 +35,7 @@ void cholesky_openmp(int n) {
          L[i] = (double *)malloc(n * sizeof(double)); 
          U[i] = (double *)malloc(n * sizeof(double)); 
          B[i] = (double *)malloc(n * sizeof(double)); 
-        diagonal_tmp = 0;
+        diagonal_tmp[i] = 0;
     }
 
     srand(time(NULL));
