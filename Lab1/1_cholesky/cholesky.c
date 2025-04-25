@@ -107,7 +107,7 @@ void cholesky_openmp(int n) {
 
     start = omp_get_wtime();
     // transposada
-    #pragma omp parallel for collapse(2)
+    #pragma omp parallel for
     for (i = 0; i < n; i++)
         for (j = i; j < n; j++)
             L[j][i] = U[i][j];
@@ -142,7 +142,7 @@ void cholesky_openmp(int n) {
      */
 
     cnt=0;
-    #pragma omp parallel for reduction(+:cnt) collapse(2)
+    #pragma omp parallel for reduction(+:cnt)
     for(i=0; i<n; i++){
         for(j=i; j<n; j++){
             double diff = A[i][j] - B[i][j];
