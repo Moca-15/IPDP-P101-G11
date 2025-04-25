@@ -16,6 +16,10 @@ void cholesky_openmp(int n) {
     double start, end;
     int cnt = 0;
 
+#ifdef DEBUG
+    printf("cholesky checkpoint 0: definitions. num threads: %d\n", omp_get_num_threads());
+#endif
+
     /**
      * 1. Matrix initialization for A, L, U and B
      */
@@ -26,6 +30,7 @@ void cholesky_openmp(int n) {
     U = (double **)malloc(n * sizeof(double *));
     B = (double **)malloc(n * sizeof(double *));
 
+
     #pragma omp parallel for
     for (i = 0; i < n; i++) {
         A[i] = (double *)malloc(n * sizeof(double));
@@ -34,7 +39,6 @@ void cholesky_openmp(int n) {
         B[i] = (double *)malloc(n * sizeof(double));
     }
 
-
     // generate random values for the matrix in range [-1,1]
     srand(time(NULL));
     #pragma omp parallel for collapse(2)
@@ -42,7 +46,7 @@ void cholesky_openmp(int n) {
         for (j = 0; j < n; j++)
             A[i][j] = ((double) rand() / RAND_MAX) * 2.0 - 1.0;
 
-    // make it positive define
+    //make it positive define
     for (i = 0; i < n; i++)
         for (j = i; j < n; j++) {
             if (i == j) {
@@ -62,9 +66,9 @@ void cholesky_openmp(int n) {
             B[i][j] = 0.0;
         }
 
+
     end = omp_get_wtime();
     printf("Initialization: %f\n", end-start);
-
 
 #ifdef DEBUG
     printf("cholesky checkpoint 1\n");
@@ -77,25 +81,24 @@ void cholesky_openmp(int n) {
 
     double sum;
     start = omp_get_wtime();
-
-    for (i = 0; i < n; i++) {
-	//diagonal
-        sum = 0.0;
-        for (k = 0; k < i; k++)
-            sum += U[k][i] * U[k][i];
-
-        U[i][i] = sqrt(A[i][i] - sum);
-
-	// resta
-        #pragma omp parallel for private(j, k, sum)
-        for (j = i + 1; j < n; j++) {
+    	for (i = 0; i < n; i++) {
+	    //diagonal
             sum = 0.0;
-            for (k = 0; k < i; k++)
-                sum += U[k][j] * U[k][i];
-            U[i][j] = (A[j][i] - sum) / U[i][i];
-        }
-    }
+	    #pragma omp parallel for reduction(+:sum) private(k) shared(U)
+	    for (k = 0; k < i; k++)
+ 	        sum += U[k][i] * U[k][i];
 
+            U[i][i] = sqrt(A[i][i] - sum);
+
+	    // resta de la matriu ( triangle superior)
+    	    #pragma omp parallel for private(j,k,sum) shared(U,A) schedule(dynamic)
+	    for (j = i + 1; j < n; j++) {
+ 		sum = 0.0;
+		for (k = 0; k < i; k++)
+		    sum += U[k][j] * U[k][i];
+		U[i][j] = (A[j][i] - sum) / U[i][i];
+		}
+	}
     end = omp_get_wtime();
     printf("Cholesky:  %.6f\n", end-start);
 
@@ -107,9 +110,9 @@ void cholesky_openmp(int n) {
     /**
      * 3. Calculate L from U'
      */
-
+ 
     start = omp_get_wtime();
-    // transposada
+    // calcular la transposada de U
     #pragma omp parallel for
     for (i = 0; i < n; i++)
         for (j = i; j < n; j++)
@@ -122,12 +125,13 @@ void cholesky_openmp(int n) {
 #endif
 
 
+
     /**
      * 4. Compute B=LU
      */
 
     start = omp_get_wtime();
-    #pragma omp parallel for collapse(3) private(i, j, k)
+    #pragma omp parallel for schedule(static)
     for (i = 0; i < n; i++)
         for (j = 0; j < n; j++)
             for (k = 0; k < n; k++)
@@ -149,7 +153,10 @@ void cholesky_openmp(int n) {
     for(i=0; i<n; i++){
         for(j=i; j<n; j++){
             double diff = A[i][j] - B[i][j];
-            if(sqrt(diff*diff) > 0.001) cnt++;
+            if(sqrt(diff*diff) > 0.001){
+		cnt++;
+		//printf("A: %d; B: %d\n", A[i][j], B[i][j]);
+	    }
         }
     }
 
@@ -159,7 +166,7 @@ void cholesky_openmp(int n) {
         printf("Matrices are equal\n");
     }
     printf("A==B?: %d\n", cnt);
-
+ 
 
 
     // cleanup :P
@@ -176,12 +183,28 @@ void cholesky_openmp(int n) {
     free(U);
     free(B);
 
-
 #ifdef DEBUG
     printf("cholesky checkpoint 5: hell yea execution succesful fking finally\n");
 #endif
 
 }
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -326,7 +349,9 @@ void cholesky(int n) {
     for(i=0; i<n; i++){
         for(j=i; j<n; j++){
             double diff = A[i][j] - B[i][j];
-            if(sqrt(diff*diff) > 0.001) cnt++;
+            if(sqrt(diff*diff) > 0.001){
+		 cnt++;
+	    }
         }
     }
     if(cnt != 0) {
