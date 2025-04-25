@@ -7,7 +7,6 @@
 
 //#define DEBUG 0
 
-
 void cholesky_openmp(int n) {
 
     int i, j, k;
@@ -47,6 +46,7 @@ void cholesky_openmp(int n) {
             A[i][j] = ((double) rand() / RAND_MAX) * 2.0 - 1.0;
 
     //make it positive define
+    #pragma omp parallel for private(i,j) shared(A)
     for (i = 0; i < n; i++)
         for (j = i; j < n; j++) {
             if (i == j) {
@@ -84,7 +84,7 @@ void cholesky_openmp(int n) {
     	for (i = 0; i < n; i++) {
 	    //diagonal
             sum = 0.0;
-	    #pragma omp parallel for reduction(+:sum) private(k) shared(U)
+	    #pragma omp parallel for reduction(+:sum) private(k) shared(U) shcedule(static)
 	    for (k = 0; k < i; k++)
  	        sum += U[k][i] * U[k][i];
 

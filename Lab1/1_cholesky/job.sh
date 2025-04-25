@@ -5,7 +5,7 @@
 #SBATCH -p std
 #SBATCH --output=out_cholesky_%j.out
 #SBATCH --error=out_cholesky_%j.err
-#SBATCH --cpus-per-task=4
+#SBATCH --cpus-per-task=16
 #SBATCH --ntasks=1
 #SBATCH --nodes=1
 #SBATCH --time=00:05:00
