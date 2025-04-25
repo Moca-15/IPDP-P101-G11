@@ -109,7 +109,7 @@ int main(int argc, char* argv[]){
     omp_set_num_threads(nthreads);
     double *v = malloc(sizeof(double) * N);
     initialize(v,N);
-
+    printf("Running argmax with K = %d using %d threads\n", K, nthreads);
     time = omp_get_wtime();
     argmax_seq(v,N, &seq_m, &seq_idx_m);
     time = omp_get_wtime() - time;
