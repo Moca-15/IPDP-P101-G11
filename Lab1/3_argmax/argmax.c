@@ -5,6 +5,10 @@
 
 #define PI 3.14159265359 
 
+
+#pragma omp declare reduction(max_ptr : double* : omp_out = (*omp_out > *omp_in)? omp_out : omp_in) \
+initializer(omp_priv = omp_orig)
+
 int nthreads, K;
 double time;
 double seq_m, par_m, rec_m, task_m;
@@ -29,16 +33,13 @@ void argmax_seq(double *v, int N, double *m, int *idx_m) {
 
 // computes the argmax in parallel with a for loop
  void argmax_par(double *v, int N, double *m, int *idx_m) {
-    *m = v[0];
-    #pragma omp parallel for
+    double *maxval = v;
+    #pragma omp parallel for reduction(max_ptr: maxval)
     for(int i=0; i<N; i++){
-        #pragma omp critical{
-            if(*m<v[i]){
-            *m = v[i];
-            *idx_m = i;
-            }
-        }
+		if(*maxval<v[i]) maxval = &v[i];
     }
+    *m = *maxval;
+    *idx_m = maxval - v;
 }
 
  // computes the argmax recursively and sequentially
@@ -50,11 +51,18 @@ void argmax_seq(double *v, int N, double *m, int *idx_m) {
 
     double aux_m_1, aux_m_2;
     int aux_idx_1, aux_idx_2;
-
-    argmax_recursive(v,N/2, &aux_m_1, &aux_idx_1, K);
-    argmax_recursive(&v[N/2],(N%2 == 0)? N/2 : N/2 + 1, &aux_m_2, &aux_idx_2, K);
-    *m = (aux_m_1 > aux_m_2) ? aux_m_1 : aux_m_2;
-    *idx_m = (aux_idx_1 > aux_idx_2) ? aux_idx_1 : aux_idx_2;
+	int Nhalf = N/2;
+    argmax_recursive(v,Nhalf, &aux_m_1, &aux_idx_1, K);
+    argmax_recursive(&v[Nhalf],(N%2 == 0)? Nhalf : Nhalf + 1, &aux_m_2, &aux_idx_2, K);
+    
+    if(aux_m_1 > aux_m_2){
+		    	*m = aux_m_1;
+		    	*idx_m = aux_idx_1;
+	}
+    else{
+    	*m = aux_m_2;
+    	*idx_m = aux_idx_2 + (N%2 == 0)? Nhalf : Nhalf + 1;
+    }
 }
 
 // computes the argmax recursively and in parallel using tasks
@@ -66,19 +74,30 @@ void argmax_recursive_tasks(double *v, int N, double *m, int *idx_m, int K) {
 
     double aux_m_1, aux_m_2;
     int aux_idx_1, aux_idx_2;
+	int Nhalf = N/2;
+	
+    #pragma omp parallel
+    {
+		#pragma omp single
+		{
+		    #pragma omp task 
+			argmax_recursive_tasks(v,Nhalf, &aux_m_1, &aux_idx_1, K);
+			
+			#pragma omp task
+			argmax_recursive_tasks(&v[Nhalf],(N%2 == 0)? Nhalf : Nhalf + 1, &aux_m_2, &aux_idx_2, K);
 
-    #pragma omp parallel{
-
-        #pragma omp task {
-        argmax_recursive(v,N/2, &aux_m_1, &aux_idx_1, K);
-        }
-        
-        #pragma omp task {
-        argmax_recursive(&v[N/2],(N%2 == 0)? N/2 : N/2 + 1, &aux_m_2, &aux_idx_2, K);
-        }
-
-        *m = (aux_m_1 > aux_m_2) ? aux_m_1 : aux_m_2;
-        *idx_m = (aux_idx_1 > aux_idx_2) ? aux_idx_1 : aux_idx_2;
+			#pragma omp taskwait
+			{
+				if(aux_m_1 > aux_m_2){
+					*m = aux_m_1;
+					*idx_m = aux_idx_1;
+				}
+				else{
+					*m = aux_m_2;
+					*idx_m = aux_idx_2 + (N%2 == 0)? Nhalf : Nhalf + 1;
+				}
+			}
+	    }
     }
 
 }
@@ -87,31 +106,31 @@ int main(int argc, char* argv[]){
     double N = 4096 * 4096;
     nthreads = atoi(argv[1]);
     K = atoi(argv[2]);
-    omp_set_num_threads(nthreads)
+    omp_set_num_threads(nthreads);
     double *v = malloc(sizeof(double) * N);
     initialize(v,N);
-
+    printf("Running argmax with K = %d using %d threads\n", K, nthreads);
     time = omp_get_wtime();
     argmax_seq(v,N, &seq_m, &seq_idx_m);
     time = omp_get_wtime() - time;
-    printf("Sequential for \targmax: m = %lf, idx_m=%d, time=%lfs", seq_m, seq_idx_m, time);
+    printf("Sequential for \t        argmax: m = %lf, idx_m=%d, time=%lfs\n", seq_m, seq_idx_m, time);
 
 
     time = omp_get_wtime();
     argmax_par(v,N, &par_m, &par_idx_m);
     time = omp_get_wtime() - time;
-    printf("Parallel for \targmax: m = %lf, idx_m=%d, time=%lfs", par_m, par_idx_m, time);
+    printf("Parallel   for \t        argmax: m = %lf, idx_m=%d, time=%lfs\n", par_m, par_idx_m, time);
 
 
     time = omp_get_wtime();
     argmax_recursive(v,N, &rec_m, &rec_idx_m, K);
     time = omp_get_wtime() - time;
-    printf("Sequential for \targmax: m = %lf, idx_m=%d, time=%lfs", rec_m, rec_idx_m, time);
+    printf("Sequential recursive \targmax: m = %lf, idx_m=%d, time=%lfs\n", rec_m, rec_idx_m, time);
 
     time = omp_get_wtime();
     argmax_recursive_tasks(v,N, &task_m, &task_idx_m, K);
     time = omp_get_wtime() - time;
-    printf("Sequential for \targmax: m = %lf, idx_m=%d, time=%lfs", task_m, task_idx_m, time);
+    printf("Parallel   recursive \targmax: m = %lf, idx_m=%d, time=%lfs\n", task_m, task_idx_m, time);
 
 
 }
