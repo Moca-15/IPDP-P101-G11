@@ -9,8 +9,10 @@
 
 
 void cholesky_openmp(int n) {
+
     int i, j, k;
     double **A, **L, **U, **B;
+
     double start, end;
     int cnt = 0;
 
@@ -32,6 +34,7 @@ void cholesky_openmp(int n) {
         B[i] = (double *)malloc(n * sizeof(double));
     }
 
+
     // generate random values for the matrix in range [-1,1]
     srand(time(NULL));
     #pragma omp parallel for collapse(2)
@@ -44,7 +47,7 @@ void cholesky_openmp(int n) {
         for (j = i; j < n; j++) {
             if (i == j) {
                 A[i][j] += n;
-            } else {
+            } else{
                 A[i][j] += ((double) rand() / RAND_MAX) * sqrt(n);
                 A[j][i] = A[i][j]; // symmetry :3
             }
