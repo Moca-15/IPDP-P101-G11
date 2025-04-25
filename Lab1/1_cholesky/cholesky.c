@@ -84,14 +84,14 @@ void cholesky_openmp(int n) {
     	for (i = 0; i < n; i++) {
 	    //diagonal
             sum = 0.0;
-	    #pragma omp parallel for reduction(+:sum) private(k) shared(U) shcedule(static)
+	    #pragma omp parallel for reduction(+:sum) private(k) shared(U) schedule(static,4)
 	    for (k = 0; k < i; k++)
  	        sum += U[k][i] * U[k][i];
 
             U[i][i] = sqrt(A[i][i] - sum);
 
 	    // resta de la matriu ( triangle superior)
-    	    #pragma omp parallel for private(j,k,sum) shared(U,A) schedule(dynamic)
+    	    #pragma omp parallel for private(j,k,sum) shared(U,A) schedule(dynamic,4)
 	    for (j = i + 1; j < n; j++) {
  		sum = 0.0;
 		for (k = 0; k < i; k++)
