@@ -1,0 +1,7 @@
+# ignore all output files
+*.out
+
+#ignore all error files
+*.err
+
+
