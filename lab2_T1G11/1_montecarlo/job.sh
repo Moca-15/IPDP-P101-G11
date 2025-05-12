@@ -14,4 +14,4 @@ module load gcc/13.3.0 openmpi/5.0.3
 
 make >> make.out || exit 1
 
-mpirun -np 12 montecarlo 3 1000000 10
+mpirun -np 12 montecarlo 4 1000000 10

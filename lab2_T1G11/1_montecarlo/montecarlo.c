@@ -88,7 +88,7 @@ int main(int argc, char *argv[]){
 		printf("Monte Carlo sphere/cube ratio estimation\n");
         printf("N: %d samples, d: %d, seed %d, size: %d\n", NUM_SAMPLES, d, SEED, numtasks);
 		printf("Ratio = %.3e (%.3e) Err: %.3e\n", estimated_ratio, real_ratio, err);
-		printf("Elapser time: %lf\n", maxtime);
+		printf("Elapsed time: %5.3lf seconds\n", maxtime);
 	}
 
 	 MPI_Finalize();
