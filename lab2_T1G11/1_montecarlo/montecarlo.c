@@ -3,6 +3,7 @@
 #include <time.h>
 #include <stdlib.h>
 #include <stdint.h>
+#include <math.h>
 
 typedef struct { uint64_t state; uint64_t inc; } pcg32_random_t;
 double pcg32_random( pcg32_random_t *rng){
@@ -12,8 +13,26 @@ double pcg32_random( pcg32_random_t *rng){
 	uint32_t xorshifted = ((oldstate >> 18u) ^ oldstate) >> 27u;
 	uint32_t rot = oldstate >> 59u;
 	uint32_t ran_int = (xorshifted >> rot) | (xorshifted << ((-rot) & 31));
-	printf("Generating: %x\n", ran_int);
+
 	return (double)ran_int / (double)UINT32_MAX;
+}
+
+//generate random doubles in [-1,1] space (shift from [0,1])
+double shifted_random(pcg32_random_t *rng){
+	double val = pcg32_random(rng);
+	val = (val - 0.5) * 2;
+	return val;
+}
+
+void generate_d_vector(double *vect, int d, pcg32_random_t *rng){
+	for(int i=0; i<d; i++) vect[i] = shifted_random(rng);
+}
+
+//calculate module for d dimension vector
+double vector_mod(double *vect, int d){
+	double accum = 0;
+	for(int i=0; i<d; i++) accum += vect[i]*vect[i];
+	return sqrt(accum);
 }
 
 int main(int argc, char *argv[]){
@@ -36,9 +55,8 @@ int main(int argc, char *argv[]){
 
 	//init rng
     pcg32_random_t rng;
-    rng.state = SEED + rank;
-	printf("SEED is: %d\n", rng.state);
-    rng.inc = (rank << 16) | 0x3039;
+    rng.state = SEED + rank;  //0x853c49e6748fea9b + rank; //SEED + rank;
+    rng.inc = (rank<<16) | 0x3039; //0xda3e39cb94b95bdb;//(rank << 16) | 0x3039;
 
 	//amount of samples to take care of in this node
 	long local_n_samples = NUM_SAMPLES / numtasks + ((rank >= NUM_SAMPLES%numtasks)? 0 : 1);
@@ -48,9 +66,26 @@ int main(int argc, char *argv[]){
     	printf("N: %d samples, d: %d, seed %d, size: %d\n", NUM_SAMPLES, d, SEED, numtasks);
 	}
 
-	printf("Rank %d generated %lf; Local Samples: %d\n", rank, pcg32_random(&rng), local_n_samples);
+	pcg32_random(&rng);
 
-    MPI_Finalize();
+	int count = 0;
+	double *vector = malloc(sizeof(double) * d);
+	for(int i=0; i<local_n_samples; i++){
+		generate_d_vector(vector, d, &rng);
+		if(vector_mod(vector, d) <= 1.0) count++;
+	}
+	//printf("Rank: %d; points inside sphere: %d out of %d\n",rank, count, local_n_samples);
+
+	int total_sum;
+	MPI_Reduce(&count, &total_sum, 1, MPI_INT, MPI_SUM, 0, MPI_COMM_WORLD);
+
+	if(rank == 0){
+		double estimated_ratio = (double)total_sum / (double)NUM_SAMPLES;
+		double real_ratio = pow(M_PI, (double)d/(double)2) / (pow(2,d) * tgamma((double)d/(double)2 + 1));
+		printf("Aprox Ratio: %lf\nReal Ratio: %lf\nErr: %lf\n", estimated_ratio, real_ratio, real_ratio-estimated_ratio);
+	}
+
+	 MPI_Finalize();
 
 return 0;
 
