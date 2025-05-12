@@ -31,13 +31,14 @@ int main(int argc, char *argv[]){
 
 	MPI_Init(&argc, &argv);
 
-	//init rng
-	pcg32_random_t rng;
-	rng.state = SEED + rank;
-	rng.inc = (rank << 16) | 0x3039;
-
     MPI_Comm_size (MPI_COMM_WORLD, &numtasks);
     MPI_Comm_rank (MPI_COMM_WORLD, &rank);
+
+	//init rng
+    pcg32_random_t rng;
+    rng.state = SEED + rank;
+    rng.inc = (rank << 16) | 0x3039;
+
 
 	if(rank == 0) {
     	printf("Monte Carlo sphere/cube ratio estimation\n");
