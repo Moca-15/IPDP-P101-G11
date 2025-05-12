@@ -61,10 +61,7 @@ int main(int argc, char *argv[]){
 	//amount of samples to take care of in this node
 	long local_n_samples = NUM_SAMPLES / numtasks + ((rank >= NUM_SAMPLES%numtasks)? 0 : 1);
 
-	if(rank == 0) {
-    	printf("Monte Carlo sphere/cube ratio estimation\n");
-    	printf("N: %d samples, d: %d, seed %d, size: %d\n", NUM_SAMPLES, d, SEED, numtasks);
-	}
+	double time = MPI_Wtime();
 
 	pcg32_random(&rng);
 
@@ -75,14 +72,23 @@ int main(int argc, char *argv[]){
 		if(vector_mod(vector, d) <= 1.0) count++;
 	}
 	//printf("Rank: %d; points inside sphere: %d out of %d\n",rank, count, local_n_samples);
+	time = MPI_Wtime() - time;
 
 	int total_sum;
+	double maxtime;
+
 	MPI_Reduce(&count, &total_sum, 1, MPI_INT, MPI_SUM, 0, MPI_COMM_WORLD);
+	MPI_Reduce(&time, &maxtime, 1, MPI_DOUBLE, MPI_MAX, 0, MPI_COMM_WORLD);
 
 	if(rank == 0){
 		double estimated_ratio = (double)total_sum / (double)NUM_SAMPLES;
 		double real_ratio = pow(M_PI, (double)d/(double)2) / (pow(2,d) * tgamma((double)d/(double)2 + 1));
-		printf("Aprox Ratio: %lf\nReal Ratio: %lf\nErr: %lf\n", estimated_ratio, real_ratio, real_ratio-estimated_ratio);
+		double err = fabs(real_ratio-estimated_ratio);
+
+		printf("Monte Carlo sphere/cube ratio estimation\n");
+        printf("N: %d samples, d: %d, seed %d, size: %d\n", NUM_SAMPLES, d, SEED, numtasks);
+		printf("Ratio = %.3e (%.3e) Err: %.3e\n", estimated_ratio, real_ratio, err);
+		printf("Elapser time: %lf\n", maxtime);
 	}
 
 	 MPI_Finalize();
