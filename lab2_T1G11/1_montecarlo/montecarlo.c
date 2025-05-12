@@ -9,10 +9,10 @@ double pcg32_random( pcg32_random_t *rng){
 
 	uint64_t oldstate = rng->state;
 	rng->state = oldstate * 6364136223846793005ULL + (rng->inc|1);
-	uint32_t xorshifted = ((oldstate >> 18u) ^  oldstate) >> 27u;
+	uint32_t xorshifted = ((oldstate >> 18u) ^ oldstate) >> 27u;
 	uint32_t rot = oldstate >> 59u;
 	uint32_t ran_int = (xorshifted >> rot) | (xorshifted << ((-rot) & 31));
-
+	printf("Generating: %x\n", ran_int);
 	return (double)ran_int / (double)UINT32_MAX;
 }
 
@@ -37,15 +37,18 @@ int main(int argc, char *argv[]){
 	//init rng
     pcg32_random_t rng;
     rng.state = SEED + rank;
+	printf("SEED is: %d\n", rng.state);
     rng.inc = (rank << 16) | 0x3039;
 
+	//amount of samples to take care of in this node
+	long local_n_samples = NUM_SAMPLES / numtasks + ((rank >= NUM_SAMPLES%numtasks)? 0 : 1);
 
 	if(rank == 0) {
     	printf("Monte Carlo sphere/cube ratio estimation\n");
     	printf("N: %d samples, d: %d, seed %d, size: %d\n", NUM_SAMPLES, d, SEED, numtasks);
 	}
 
-	printf("Rank %d generated %d\n", rank, pcg32_random(&rng));
+	printf("Rank %d generated %lf; Local Samples: %d\n", rank, pcg32_random(&rng), local_n_samples);
 
     MPI_Finalize();
 
