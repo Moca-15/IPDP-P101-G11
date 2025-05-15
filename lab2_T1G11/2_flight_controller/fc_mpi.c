@@ -1,5 +1,4 @@
 #include <stdio.h>
-
 #include <assert.h>
 #include <string.h>
 #include <time.h>
@@ -11,6 +10,112 @@
 /// Reading the planes from a file for MPI
 void read_planes_mpi(const char* filename, PlaneList* planes, int* N, int* M, double* x_max, double* y_max, int rank, int size, int* tile_displacements)
 {
+
+	int num_planes;
+	int int_arr[3];
+	double db_arr[2];
+
+
+	MPI_File fh;
+	MPI_Status status;
+	MPI_Offset data_start = 0; // quan acaba el header i començen els planes
+
+	// MPI escriurà el file handler a l'adreça de fh
+	int err = MPI_File_open(MPI_COMM_WORLD, filename, MPI_MODE_RDONLY, MPI_INFO_NULL, &fh);
+	if(err != MPI_SUCCESS){
+		fprintf(stderr, "error opening file :(\n");
+		MPI_Abort(MPI_COMM_WORLD, 1);
+	}
+
+	// llegirà data del header (les 1eres línies)
+	if(rank == 0) {
+
+		int max_line_size = 256;
+		char line[max_line_size];
+
+		char c;
+		int line_pos;
+
+		for(int i = 0; i<4; i++) {
+			line_pos = 0;
+			while(1) {
+				MPI_File_read_at(fh, data_start, &c, 1, MPI_CHAR, &status);
+				data_start++;
+				if(c == '\n') break;
+				line[line_pos++] = c;
+				if(line_pos >= max_line_size-1) break;
+			}
+			line[line_pos] = '\0'; 
+			printf("%d : read line %s\n", rank, line);
+
+			// línies 3 i 5
+			if(i == 1) {sscanf(line, "# Map: %lf, %lf : %d %d", x_max, y_max, N, M);}
+			if(i == 2) {sscanf(line, "# Number of Planes: %d", &num_planes);}
+		}
+
+		// arrays per als broadcasts
+		int_arr[0] = *N; int_arr[1] = *M; int_arr[2] = num_planes;
+		db_arr[0] = *x_max; db_arr[1] = *y_max;
+
+	}
+
+	MPI_Bcast(int_arr, 3, MPI_INT, 0, MPI_COMM_WORLD);
+	MPI_Bcast(db_arr, 2, MPI_DOUBLE, 0, MPI_COMM_WORLD);
+	MPI_Bcast(&data_start, 1, MPI_OFFSET, 0, MPI_COMM_WORLD);
+
+	printf("%d : received: N = %d : M = %d : num_planes = %d \n\t x_max = %f : y_max = %f \n\t data_start = %d\n", rank, int_arr[0], int_arr[1], int_arr[2], db_arr[0], db_arr[1], data_start);
+
+	*N = int_arr[0];
+	*M = int_arr[1];
+	num_planes = int_arr[2];
+
+	*x_max = db_arr[0];
+	*y_max = db_arr[1];
+
+	MPI_Offset file_size;
+	MPI_File_get_size(fh, &file_size);
+
+	printf("%d : file size = %d\n", rank, file_size);
+
+	MPI_Offset plane_data_size = file_size - data_start; // mida de les dades dels avions (fitxer sense el header)
+
+	printf("%d : data size = %d\n", rank, plane_data_size);
+
+	int line_size = (num_planes != 0 ? plane_data_size / num_planes : 0); // mida d'una línia (totes seràn iguals). serà enter pq per cada plane hi ha 1 línia
+	printf("%d : line size = %d\n", rank, line_size);
+
+
+	int local_planes = num_planes / size + ((rank >= num_planes%size)? 0 : 1); // els que ha d'executar aquest rank
+
+	printf("%d : my planes = %d\n", rank, local_planes);
+
+
+	MPI_Offset displacement = data_start + rank * local_planes * line_size;
+
+	printf("%d : displacement = %lld\n", rank, displacement);
+
+
+
+
+
+	printf("%d : barrier reached\n", rank);
+
+	MPI_Barrier(MPI_COMM_WORLD);
+
+	printf("%d : barrier passed \n", rank);
+
+
+
+	//for(int i = 0; i < local_planes; i++) {
+		
+	
+
+	//}
+
+
+
+	MPI_File_close(&fh);
+
 }
 
 /// TODO
@@ -54,6 +159,11 @@ int main(int argc, char **argv) {
     int rank, size;
 
     /// TODO
+	MPI_Init(&argc, &argv);
+	MPI_Comm_size(MPI_COMM_WORLD, &size);
+	MPI_Comm_rank(MPI_COMM_WORLD, &rank);
+
+
 
 
     int tile_displacements[size+1];
@@ -125,7 +235,7 @@ int main(int argc, char **argv) {
 
     if (check ==1)
         check_planes_mpi(&owning_planes_t0, &owning_planes, N, M, x_max, y_max, max_steps, tile_displacements, size, debug);
-
+ 
     MPI_Finalize();
     return 0;
 }
