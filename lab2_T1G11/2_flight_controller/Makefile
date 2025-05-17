@@ -1,4 +1,4 @@
-CC=
+CC=mpicc
 CFLAGS=-O3 -march=native -lm -std=c99
 
 all:
@@ -6,5 +6,6 @@ all:
 	$(CC) fc_mpi.c auxiliar.c -o fc_mpi $(CFLAGS)
 
 clean:
-	rm $(OBJ)
+	rm fc_seq
+	rm fc_mpi
 
