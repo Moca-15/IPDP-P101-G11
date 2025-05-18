@@ -282,6 +282,57 @@ void communicate_planes_send(PlaneList* list, int N, int M, double x_max, double
 /// Communicate planes using all to all calls with default data types
 void communicate_planes_alltoall(PlaneList* list, int N, int M, double x_max, double y_max, int rank, int size, int* tile_displacements)
 {
+	printf("Hi\n");
+	int send_cnt[size];
+	memset(send_cnt, 0, size*sizeof(int));
+
+	double *planes_to_send = malloc(sizeof(double)*6*10); //data of planes to send
+	int size_of_arr = 60;
+	int items_in_arr = 0;
+
+	PlaneNode *plane = list->head;
+
+	while(plane != NULL) {
+        int index_i = get_index_i(plane->x, x_max, N);
+        int index_j = get_index_j(plane->y, y_max, M);
+        plane->index_map = get_index(index_i, index_j, N, M);
+        plane->rank = get_rank_from_index(plane->index_map, tile_displacements, size);
+        if(plane->rank != rank){
+
+			if(size_of_arr-items_in_arr < 6){
+				size_of_arr *= 2;
+				planes_to_send = realloc(planes_to_send, sizeof(double)*size_of_arr);
+			}
+			send_cnt[plane->rank]++;
+			planes_to_send[items_in_arr++] = (double)plane->rank;
+			planes_to_send[items_in_arr++] = (double)plane->index_plane;
+			planes_to_send[items_in_arr++] = (double)plane->index_map;
+
+			planes_to_send[items_in_arr++] = plane->x;
+			planes_to_send[items_in_arr++] = plane->y;
+			planes_to_send[items_in_arr++] = plane->vx;
+			planes_to_send[items_in_arr++] = plane->vy;
+		}
+        plane = plane->next;
+    }
+	//sort array before send
+	for(int i=0; i<items_in_arr; i+=6){
+		double current_rank = planes_to_send[i];
+		for(int j=i+6; j<items_in_arr; j+=6){
+			if(planes_to_send[j] < current_rank){
+				//swap
+				double aux;
+				for(int k=0; k<6; k++) {
+					aux = planes_to_send[k+j];
+					planes_to_send[k+j] = planes_to_send[k+i];
+					planes_to_send[k+i] = aux;
+				}
+				current_rank = planes_to_send[j];
+			}
+		}
+		printf("Ran: %3.lf\n",current_rank);
+	}
+	return;
 }
 
 typedef struct {
