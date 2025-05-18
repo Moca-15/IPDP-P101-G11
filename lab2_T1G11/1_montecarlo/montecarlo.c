@@ -5,6 +5,9 @@
 #include <stdint.h>
 #include <math.h>
 
+//#define CSV
+
+//Random number generator
 typedef struct { uint64_t state; uint64_t inc; } pcg32_random_t;
 double pcg32_random( pcg32_random_t *rng){
 
@@ -37,25 +40,24 @@ double vector_mod(double *vect, int d){
 
 int main(int argc, char *argv[]){
 
-    int numtasks, rank;
+	MPI_Init(&argc, &argv);
+
+	int numtasks, rank;
 
     //default vals
     int d = 3;
     long NUM_SAMPLES = 1000000;
     long SEED = time(NULL);
 
-	if(argc > 1) d = atoi(argv[1]);
-	if(argc > 2) NUM_SAMPLES = atol(argv[2]);
-	if(argc > 3) SEED = atol(argv[3]);
-
-	MPI_Init(&argc, &argv);
-
+    if(argc > 1) d = atoi(argv[1]);
+    if(argc > 2) NUM_SAMPLES = atol(argv[2]);
+    if(argc > 3) SEED = atol(argv[3]);
     MPI_Comm_size (MPI_COMM_WORLD, &numtasks);
     MPI_Comm_rank (MPI_COMM_WORLD, &rank);
 
 	//init rng
     pcg32_random_t rng;
-    rng.state = SEED + rank;  //0x853c49e6748fea9b + rank; //SEED + rank;
+    rng.state = SEED + rank;
     rng.inc = (rank<<16) | 0x3039; //0xda3e39cb94b95bdb;//(rank << 16) | 0x3039;
 
 	//amount of samples to take care of in this node
@@ -63,7 +65,8 @@ int main(int argc, char *argv[]){
 
 	double time = MPI_Wtime();
 
-	pcg32_random(&rng);
+	//first time roll of the randomizer will return 0, we don't care much about it since we're doing millions of runs but you han give it a headstart here.
+	//pcg32_random(&rng);
 
 	int count = 0;
 	double *vector = malloc(sizeof(double) * d);
@@ -71,7 +74,7 @@ int main(int argc, char *argv[]){
 		generate_d_vector(vector, d, &rng);
 		if(vector_mod(vector, d) <= 1.0) count++;
 	}
-	//printf("Rank: %d; points inside sphere: %d out of %d\n",rank, count, local_n_samples);
+
 	time = MPI_Wtime() - time;
 
 	int total_sum;
@@ -84,11 +87,14 @@ int main(int argc, char *argv[]){
 		double estimated_ratio = (double)total_sum / (double)NUM_SAMPLES;
 		double real_ratio = pow(M_PI, (double)d/(double)2) / (pow(2,d) * tgamma((double)d/(double)2 + 1));
 		double err = fabs(real_ratio-estimated_ratio);
-
+#ifdef CSV
+		printf("%d,%lf,%lf,%lf,%lf\n",numtasks,estimated_ratio,real_ratio,err,maxtime);
+#else
 		printf("Monte Carlo sphere/cube ratio estimation\n");
         printf("N: %d samples, d: %d, seed %d, size: %d\n", NUM_SAMPLES, d, SEED, numtasks);
 		printf("Ratio = %.3e (%.3e) Err: %.3e\n", estimated_ratio, real_ratio, err);
 		printf("Elapsed time: %5.3lf seconds\n", maxtime);
+#endif
 	}
 
 	 MPI_Finalize();
