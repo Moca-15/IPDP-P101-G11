@@ -66,7 +66,7 @@ void insert_plane(struct PlaneList* list, int index_plane, int index_map, int ra
         new_node->prev = NULL;
     } else {
         list->tail->next = new_node;
-		new_node->prev = list->tail;
+        new_node->prev = list->tail;
         list->tail = new_node;
     }
 }

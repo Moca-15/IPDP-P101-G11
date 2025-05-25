@@ -8,7 +8,7 @@
 #include "auxiliar.h"
 
 
-//#define DEBUG 0
+#define DEBUG 0
 
 void debug(int rank, char  *format, ...) {
 	#ifdef DEBUG
@@ -29,6 +29,8 @@ void debug(int rank, char  *format, ...) {
 /*
 //// MPI TAG INDEX ////
 0 : for sending and receiving plane info during file reading
+
+
 
 
 
@@ -108,7 +110,7 @@ void read_planes_mpi(const char* filename, PlaneList* planes, int* N, int* M, do
 	int total_tiles = *N * *M;
 
 	for(int i=0; i<size+1; i++){
-		tile_displacements[i] = i * (total_tiles/size) + ((i>=total_tiles%size)? 0 : 1);
+		tile_displacements[i] = i * total_tiles/size + ((i>=total_tiles%size)? 0 : 1);
 		debug(rank, "Tile_displacements[%d] : %d\n", i, tile_displacements[i]);
 	}
 
@@ -118,12 +120,8 @@ void read_planes_mpi(const char* filename, PlaneList* planes, int* N, int* M, do
 	MPI_Offset plane_data_size = file_size - data_start; // mida de les dades dels avions (fitxer sense el header)
 	int line_size = (num_planes != 0 ? plane_data_size / num_planes : 0); // mida d'una línia (totes seràn iguals). serà enter pq per cada plane hi ha 1 línia
 	int local_planes = num_planes / size + ((rank >= num_planes%size)? 0 : 1); // els que ha d'executar aquest rank
-	MPI_Offset displacement = data_start;
-	for(int i = 0; i < rank; i++) { // calcular on ha de començar a llegir sabent on acaben els ranks anteriors
-		// loacl planes del rank i (tots els anteriors) per line size
-		displacement += (num_planes / size + ((i >= num_planes%size) ? 0 : 1)) * line_size;
-	}
-	// MPI_Offset displacement = data_start + rank * local_planes * line_size;
+	MPI_Offset displacement = data_start + rank * local_planes * line_size;
+
 
 	debug(rank, "\tfile size = %d\n\tdata size = %d\n\tline size = %d\n\tmy planes = %d\n\tdisplacement = %lld\n", file_size, plane_data_size, line_size, local_planes, displacement);
 
@@ -136,8 +134,8 @@ void read_planes_mpi(const char* filename, PlaneList* planes, int* N, int* M, do
 	int idx;
 	double x, y, vx, vy;
 	int index_i, index_j, index_map, prank;
-	double to_send[6];
-	int flag;
+	double to_send[5];
+	int flag = 1;
 
 	for(int i = 0; i<local_planes; i++) {
 		line_pos = 0;
@@ -151,7 +149,6 @@ void read_planes_mpi(const char* filename, PlaneList* planes, int* N, int* M, do
 
 		// parsejar-la
 		if(sscanf(line, "%d %lf %lf %lf %lf", &idx, &x, &y, &vx, &vy) == 5) {
-			//printf("%2d | plane read with idx %d \n", rank, idx);
 			index_i = get_index_i(x, *x_max, *N);
 			index_j = get_index_j(y, *y_max, *M);
 			index_map = get_index(index_i, index_j, *N, *M);
@@ -159,38 +156,20 @@ void read_planes_mpi(const char* filename, PlaneList* planes, int* N, int* M, do
  			debug(rank, "idx_i = %d\tidx_j = %d\tidx_map = %d\tprank = %d\n", index_i, index_j, index_map, prank);
 			// com que cada plane ha de tenir a la llista només els que estàn a les seves tiles:
 			if(prank != rank) {
-				to_send[0] = (double)idx; to_send[1] = (double)index_map; to_send[2] = x; to_send[3] = y; to_send[4] = vx; to_send[5] = vy;
-				MPI_Send(to_send, 6, MPI_DOUBLE, prank, 0, MPI_COMM_WORLD); 
-				//printf("%2d | sent over plane with idx %d and rank %d\n", rank, idx, prank);
-			} else {
-				//printf("%2d | 1 inserted plane with idx %d and rank %d\n", rank, idx, prank);
-				insert_plane(planes, idx, index_map, prank, x, y, vx, vy);
+				to_send[0] = (double)index_map; to_send[1] = x; to_send[2] = y; to_send[3] = vx; to_send[4] = vy;
+				MPI_Send(to_send, 5, MPI_DOUBLE, prank, 0, MPI_COMM_WORLD); 
 			}
-			// per anar rebent missatges sobre la marxa
-			//printf("%2d | flag before iprobe= %d\n", rank, flag);
 			MPI_Iprobe(MPI_ANY_SOURCE, 0, MPI_COMM_WORLD, &flag, &status);
-			//printf("%2d | flag after iprobe = %d\n", rank, flag);
 			if(flag) {
-				MPI_Recv(to_send, 6, MPI_DOUBLE, status.MPI_SOURCE, 0, MPI_COMM_WORLD, &status);
-									// idx 				index_map	  current	x			y			vx			vy
-				insert_plane(planes, (int)to_send[0], (int)to_send[1], rank, to_send[2], to_send[3], to_send[4], to_send[5]);
-				//printf("%2d | 2 inserted plane with idx %d and rank %d\n", rank, idx, prank);
+				MPI_Recv(to_send, 5, MPI_DOUBLE, status.MPI_SOURCE, 0, MPI_COMM_WORLD, &status)
+				flag = 0;
 			}
-		}
-	}
-	// per si ha quedat algun missatge per rebre quan s'han llegit tots els planes
-	MPI_Barrier(MPI_COMM_WORLD);
-	flag = 1;
-	while(flag) {
-		MPI_Iprobe(MPI_ANY_SOURCE, 0, MPI_COMM_WORLD, &flag, &status);
-		//printf("%2d | flag while = %d\n", rank, flag);
-		if(flag) {
-			MPI_Recv(to_send, 6, MPI_DOUBLE, status.MPI_SOURCE, 0, MPI_COMM_WORLD, &status);
-			insert_plane(planes, (int)to_send[0], (int)to_send[1], rank, to_send[2], to_send[3], to_send[4], to_send[5]);
-			//printf("%2d | 3 inserted plane with idx %d and rank %d\n", rank, idx, prank);
-		}
-	}
 
+
+			insert_plane(planes, idx, index_map, prank, x, y, vx, vy);
+
+		}
+	}
 
 	MPI_File_close(&fh);
 
@@ -209,130 +188,22 @@ void read_planes_mpi(const char* filename, PlaneList* planes, int* N, int* M, do
 /// Communicate planes using mainly Send/Recv calls with default data types
 void communicate_planes_send(PlaneList* list, int N, int M, double x_max, double y_max, int rank, int size, int* tile_displacements)
 {
-	// quants planes hem d'enviar a cada altre rank
-	int *num_sends = (int*)calloc(size, sizeof(int));
-	int *num_receives = (int*)calloc(size, sizeof(int));
 
-	double to_send[6], to_receive[6];
-	int index_i, index_j, prank;
-	int send_to, receive_from;
+	PlaneNode *plane = list->head;
+	while(plane != NULL) {
 
-	printf("%2d | enter comm_planes_send\n", rank);
-	// comptar els que surten i cap a on
-	PlaneNode *current = list->head;
-	while(current != NULL) {
-		index_i = get_index_i(current->x, x_max, N);
-		index_j = get_index_j(current->y, y_max, M);
-		current->index_map = get_index(index_i, index_j, N, M);
-		current->rank = get_rank_from_index(current->index_map, tile_displacements, size);
-		if(current->rank != rank) num_sends[current->rank]++;
-		current = current->next;
-	}
-
-
-	// esquema d'enviar creuat per evitar deadlocks
-	for(int i = 0; i < size; i++) {
-		send_to = (rank+1)%size;
-		receive_from = ((rank-1 < 0) ? size-1 : rank-1);
-		MPI_Sendrecv(&num_sends[send_to], 1, MPI_INT, send_to, 1, &num_receives[receive_from], 1, MPI_INT, receive_from, 1, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
-		printf("%2d | sent[%d]: %d, received[%d]: %d\n", rank, send_to, num_sends[send_to], receive_from, num_receives[receive_from]);
-	}
-	// obtenim array amb el num de planes que aquest rank ha de rebre de cada altre.
-	printf("%2d | sendrecv num_sends/num_recvs\n", rank);
-
-
-
-	// array de requests per al waitall
-	int total_sends = 0;
-	for(int i = 0; i < size; i++) total_sends += num_sends[i];
-	MPI_Request req[total_sends];
-	int req_idx = 0;
-
-	printf("%2d | array reqs\n", rank);
-
-	current = list->head;
-	while(current != NULL) {
-		if(current->rank != rank) {
-			to_send[0] = (double)current->index_plane;
-			to_send[1] = (double)current->index_map;
-			to_send[2] =  current->x; to_send[3] =  current->y;
-			to_send[4] = current->vx; to_send[5] = current->vy;
-			MPI_Isend(&to_send, 6, MPI_DOUBLE, current->rank, 1, MPI_COMM_WORLD, &req[req_idx++]);
-
-			remove_plane(list, current);
-		}
-		current = current->next;
-	}
-	
-	for(int i = 0; i < size; i++) printf("%2d | num_receives[%d] = %d\n",rank, i, num_receives[i]);
-
-	for(int i = 0; i < size; i++) {
-		printf("%2d | num receives [%d] = %d\n", rank, i, num_receives[i]);
-		for(int j = 0; j < num_receives[i]; j++) {
-			MPI_Recv(&to_receive, 6, MPI_DOUBLE, i, 1, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
-			insert_plane(list, (int)to_send[0], (int)to_send[1], rank, to_send[2], to_send[3], to_send[4], to_send[5]);
-			printf("%2d | received plane %d\n", rank, (int)to_send[1]);
-		}
+		if 
 
 	}
-	printf("%2d | finish exec\n", rank);
+
+
+
 }
 
 /// TODO
 /// Communicate planes using all to all calls with default data types
 void communicate_planes_alltoall(PlaneList* list, int N, int M, double x_max, double y_max, int rank, int size, int* tile_displacements)
 {
-	printf("Hi\n");
-	int send_cnt[size];
-	memset(send_cnt, 0, size*sizeof(int));
-
-	double *planes_to_send = malloc(sizeof(double)*6*10); //data of planes to send
-	int size_of_arr = 60;
-	int items_in_arr = 0;
-
-	PlaneNode *plane = list->head;
-
-	while(plane != NULL) {
-        int index_i = get_index_i(plane->x, x_max, N);
-        int index_j = get_index_j(plane->y, y_max, M);
-        plane->index_map = get_index(index_i, index_j, N, M);
-        plane->rank = get_rank_from_index(plane->index_map, tile_displacements, size);
-        if(plane->rank != rank){
-
-			if(size_of_arr-items_in_arr < 6){
-				size_of_arr *= 2;
-				planes_to_send = realloc(planes_to_send, sizeof(double)*size_of_arr);
-			}
-			send_cnt[plane->rank]++;
-			planes_to_send[items_in_arr++] = (double)plane->rank;
-			planes_to_send[items_in_arr++] = (double)plane->index_plane;
-			planes_to_send[items_in_arr++] = (double)plane->index_map;
-
-			planes_to_send[items_in_arr++] = plane->x;
-			planes_to_send[items_in_arr++] = plane->y;
-			planes_to_send[items_in_arr++] = plane->vx;
-			planes_to_send[items_in_arr++] = plane->vy;
-		}
-        plane = plane->next;
-    }
-	//sort array before send
-	for(int i=0; i<items_in_arr; i+=6){
-		double current_rank = planes_to_send[i];
-		for(int j=i+6; j<items_in_arr; j+=6){
-			if(planes_to_send[j] < current_rank){
-				//swap
-				double aux;
-				for(int k=0; k<6; k++) {
-					aux = planes_to_send[k+j];
-					planes_to_send[k+j] = planes_to_send[k+i];
-					planes_to_send[k+i] = aux;
-				}
-				current_rank = planes_to_send[j];
-			}
-		}
-		printf("Ran: %3.lf\n",current_rank);
-	}
-	return;
 }
 
 typedef struct {
