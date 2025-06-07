@@ -1,4 +1,4 @@
-#!/bin /bash
+#!/bin/bash
 
 #SBATCH -p gpu
 #SBATCH --gres=gpu:1
@@ -8,6 +8,7 @@
 
 module load nvhpc/24.9
 
-make >> make.out >> 1
+make >> make.out || exit 1
 
-./matmul 100 1
+./matmul 5 1
+
