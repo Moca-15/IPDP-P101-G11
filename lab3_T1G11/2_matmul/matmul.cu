@@ -8,8 +8,7 @@
 
 // CUDA ERROR CHECK
 #define CUDA_CHECK(call)                                          \
-    do                                                            \
-    {                                                             \
+    do {                                                          \
         cudaError_t err = (call);                                 \
         if (err != cudaSuccess)                                   \
         {                                                         \
@@ -17,25 +16,91 @@
                     __FILE__, __LINE__, cudaGetErrorString(err)); \
             exit(1);                                              \
         }                                                         \
-    } while (0)
+    } while (0);
 
-// TODO
+
+// TODO CHECK
 // Sequential Matrix Multiplication
 void matmul_seq(double *A, double *B, double *C, const int N)
 {
+	int val = 0;
+	int i, j, k;
+
+	for(i = 0; i < N; i++) { // per cada fila de A
+		for(j = 0; j < N; j++) { //per cada columna de B
+			for(k = 0; k < N; k++) {	// sumar cada element de la fila de A per el mateix element de la columna de B
+				val += A[i*N + k] * B[k*N +j];
+			}
+			C[i*N + j] = val;
+			val = 0;
+		}
+	}
 }
 
-// TODO
+
+// TODO CHECK
 // Simple CUDA Matrix Multiplication Kernel
 __global__ void matmul_naive_kernel(double *A, double *B, double *C, const int N)
 {
+	// claculem coordenades de C d'aquest thread
+	int row = threadIdx.y + blockIdx.y * blockDim.y;
+	int col = threadIdx.x + blockIdx.x * blockDim.x;
+
+	// si el thread està fora de la matriu retorna
+	if(row >= N || col >= N) return;
+
+	// claculem el valor de A[row] · B[col]
+	int val = 0;
+	for(int i = 0; i < N; i++) {
+		val += A[row*N + i] * B[i*N + col];
+	}
+
+	// assigna el valor a C
+	C[row*N + col] = val;
 }
 
-// TODO
+
+// TODO CHECK
 // Matrix Multiplication Kernel exploiting shared memory
 __global__ void matmul_shared_kernel(double *A, double *B, double *C, const int N)
 {
+	// crear les tiles
+	__shared__ double A_tile[BLOCKSIZE][BLOCKSIZE];
+	__shared__ double B_tile[BLOCKSIZE][BLOCKSIZE];
+
+	// BLOCKSIZE és el mateix que blockDim perquè hemm fet les tiles de la mida dels blocks
+	int row = threadIdx.y + blockIdx.y * blockDim.y;
+	int col = threadIdx.x + blockIdx.x * blockDim.x;
+
+	int i, k;
+	int val = 0;
+
+	if(row >= N || col >= N) return;
+
+	for(i = 0; i < (BLOCKSIZE + N -1)/BLOCKSIZE; i++) {
+		if(i * BLOCKSIZE + threadIdx.x < N && row < N)
+			A_tile[threadIdx.y][threadIdx.x] = A[row*N + i*BLOCKSIZE + threadIdx.x];
+		else
+			A_tile[threadIdx.y][threadIdx.x] = 0.0;
+
+		if(i * BLOCKSIZE + threadIdx.y < N && col < N)
+			B_tile[threadIdx.x][threadIdx.y] = B[col*N + i*BLOCKSIZE + threadIdx.y];
+		else
+			B_tile[threadIdx.x][threadIdx.y] = 0.0;
+
+		__syncthreads();
+
+		for(k = 0; k < N; k++)
+			val += A_tile[threadIdx.y][k]*B_tile[k][threadIdx.x];
+
+		__syncthreads();
+	}
+
+	if(row < N && col < N)
+		C[row*N + col] = val;
+
 }
+
 
 void validation(double *h_C, double *C, const int N)
 {
@@ -179,11 +244,14 @@ int main(int argc, char *argv[])
 
     // TODO
     // Define threads per block and blocks in the grid
+	int n_blocks = (N + BLOCKSIZE-1)/BLOCKSIZE;
+
 
     CUDA_CHECK(cudaEventRecord(event_start));
 
     // TODO
     // Launch matmul_naive_kernel
+	matmul_naive_kernel<<<n_blocks,BLOCKSIZE>>>(d_A, d_B, d_C, N);
 
     CUDA_CHECK(cudaGetLastError());
     CUDA_CHECK(cudaDeviceSynchronize());
@@ -216,6 +284,7 @@ int main(int argc, char *argv[])
     CUDA_CHECK(cudaEventRecord(event_start));
     // TODO
     // Launch matmul_shared_kernel
+	matmul_shared_kernel<<<n_blocks,BLOCKSIZE>>>(d_A, d_B, d_C, N);
 
     CUDA_CHECK(cudaGetLastError());
     CUDA_CHECK(cudaDeviceSynchronize());
@@ -251,7 +320,15 @@ int main(int argc, char *argv[])
 
     // TODO
     // Call cuBLAS Matrix Multiplication kernel
-
+	double alpha = 1.0;
+	double beta = 0.0;
+	for(int i = 0; i < 30; i++) {
+		cublasStatus_t st = cublasDgemm(cublas_handle, CUBLAS_OP_T, CUBLAS_OP_T, N, N, N, &alpha, d_A, N, d_B, N, &beta, d_C, N);
+		if(st != CUBLAS_STATUS_SUCCESS) {
+			fprintf(stderr, "CUBLAS error at %s:%d: %d\n", __FILE__, __LINE__, st);
+        	exit(1);
+		}
+	}
 
     CUDA_CHECK(cudaDeviceSynchronize());
 
