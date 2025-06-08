@@ -37,8 +37,10 @@ int main(int argc, char* argv[]){
 
 	double *A, *B, *C;
 
-	CUDA_CHECK(cudaMallocHost((void**)&A, size));
-	CUDA_CHECK(cudaMallocHost((void**)&B, size));
+	A = (double*)malloc(size);
+	B = (double*)malloc(size);
+
+//Pinn C
 	CUDA_CHECK(cudaMallocHost((void**)&C, size));
 
 	for(int i=0; i<N; i++){
@@ -98,7 +100,8 @@ int main(int argc, char* argv[]){
 	}
 
 	//CLEANUP
-	cudaFreeHost(A); cudaFreeHost(B); cudaFreeHost(C);
+	free(A); free(B);
+	CUDA_CHECK(cudaFreeHost(C));
 	CUDA_CHECK(cudaFree(d_A)); CUDA_CHECK(cudaFree(d_B)); CUDA_CHECK(cudaFree(d_C));
 	CUDA_CHECK(cudaEventDestroy(start)); CUDA_CHECK(cudaEventDestroy(stop));
 

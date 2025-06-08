@@ -10,6 +10,4 @@ module load nvhpc/24.9
 
 make >> make.out >> 1
 
-./vecadd_cuda 1000000
-
-
+./vecadd_cuda 50000000
