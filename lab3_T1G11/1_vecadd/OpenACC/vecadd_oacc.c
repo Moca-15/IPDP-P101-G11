@@ -7,9 +7,9 @@
 
 // DONE
 // Sequential vector addition
-void vecadd_seq(double *A, double *B, double *C, const int N)
+void vecadd_oacc(double *A, double *B, double *C, const int N)
 {
-#pragma acc parallel loop
+#pragma acc parallel loop present(A[:N],B[:N],C[:N])
 	for(int i=0; i<N; i++){
 		C[i] = A[i] + B[i];
 	}
@@ -50,12 +50,13 @@ int main(int argc, char *argv[])
     // Vector addition
     //
     struct timespec start, end;
-    clock_gettime(CLOCK_MONOTONIC, &start);
-#pragma acc data copyin(A[0:N], B[0:N]) copyout(C[0:N])
-{
-    vecadd_seq(A, B, C, N);
-}
-    clock_gettime(CLOCK_MONOTONIC, &end);
+
+
+	clock_gettime(CLOCK_MONOTONIC, &start);
+#pragma acc data copyin(A[:N], B[:N]) copyout(C[:N])
+    vecadd_oacc(A, B, C, N);
+
+	clock_gettime(CLOCK_MONOTONIC, &end);
 
     double elapsed = (end.tv_sec - start.tv_sec) + (end.tv_nsec - start.tv_nsec) / 1.0e9;
     printf("Elapsed time: %.9f seconds\n", elapsed);
