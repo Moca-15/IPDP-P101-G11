@@ -35,9 +35,11 @@ int main(int argc, char* argv[]){
 	N = atoi(argv[1]);
 	int size = N * sizeof(double);
 
-	double *A = (double*)malloc(size);
-	double *B = (double*)malloc(size);
-	double *C = (double*)malloc(size);
+	double *A, *B, *C;
+
+	CUDA_CHECK(cudaMallocHost((void**)&A, size));
+	CUDA_CHECK(cudaMallocHost((void**)&B, size));
+	CUDA_CHECK(cudaMallocHost((void**)&C, size));
 
 	for(int i=0; i<N; i++){
 		A[i] = (double)i;
@@ -96,7 +98,7 @@ int main(int argc, char* argv[]){
 	}
 
 	//CLEANUP
-	free(A); free(B); free(C);
+	cudaFreeHost(A); cudaFreeHost(B); cudaFreeHost(C);
 	CUDA_CHECK(cudaFree(d_A)); CUDA_CHECK(cudaFree(d_B)); CUDA_CHECK(cudaFree(d_C));
 	CUDA_CHECK(cudaEventDestroy(start)); CUDA_CHECK(cudaEventDestroy(stop));
 
