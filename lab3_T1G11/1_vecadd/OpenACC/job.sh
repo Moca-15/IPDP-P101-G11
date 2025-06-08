@@ -10,6 +10,6 @@ module load nvhpc/24.9
 
 make >> make.out >> 1
 
-./vecadd_oacc 10000
+./vecadd_oacc 50000000
 
 
