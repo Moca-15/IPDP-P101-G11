@@ -53,8 +53,11 @@ void setInitialConditions(Particle *particles, const int N)
     double theta, phi, v0;
     for (int i = 0; i < N; ++i)
     {
-        // TODO
+        // DONE
         // Initial position
+		particles[i].pos.x = 0.;
+		particles[i].pos.y = 0.;
+		particles[i].pos.z = 0.;
 
         // 2 particles for validation
         if (i == 0 || i == N - 1)
@@ -74,22 +77,50 @@ void setInitialConditions(Particle *particles, const int N)
         }
         else
         {
-            // TODO
-            // Generate random velocity and direction
+			//Random velocity and direction
+            v0 = random_double(V_MIN,V_MAX);
+			theta = random_double(THETA_MIN, THETA_MAX);
+			phi = random_double(PHI_MIN, PHI_MAX);
+			particles[i].vel.x = v0 * sin(theta) * cos(phi);
+			particles[i].vel.y = v0 * sin(theta) * sin(phi);
+			particles[i].vel.z = -v0 * cos(theta);
         }
     }
 }
 
-// TODO
+// DONE
 // Calculate new position and velocity
 void integrateEuler(Particle *particles, const int N)
 {
+	for(int i=0; i<N; i++){
+		Particle *p = &particles[i];
+
+		p->pos.x += p->vel.x * DT;
+		p->pos.y += p->vel.y * DT;
+		p->pos.z += p->vel.z * DT;
+
+		double v = sqrt(p->vel.x * p->vel.x + p->vel.y * p->vel.y + p->vel.z * p->vel.z);
+		double k1 = K * v * DT; k1 = k1/M;
+
+		p->vel.x -= p->vel.x * k1;
+		p->vel.y -= p->vel.y * k1;
+		p->vel.z -= p->vel.z * k1;
+	}
 }
 
-// TODO
+// DONE
 // Copy the state of the particles to a backup buffer.
 void copyFrame(Particle *p_dst, Particle *p_src, const int N)
 {
+	for(int i=0; i<N; i++){
+		p_dst[i].pos.x = p_src[i].pos.x;
+		p_dst[i].pos.y = p_src[i].pos.y;
+		p_dst[i].pos.z = p_src[i].pos.z;
+
+		p_dst[i].vel.x = p_src[i].vel.x;
+		p_dst[i].vel.y = p_src[i].vel.y;
+		p_dst[i].vel.z = p_src[i].vel.z;
+	}
 }
 
 int validate(Particle *particles, const int N)
