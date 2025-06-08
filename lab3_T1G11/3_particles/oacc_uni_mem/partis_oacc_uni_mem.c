@@ -121,7 +121,7 @@ void integrateEuler(Particle *particles, const int N)
 // Copy the state of the particles to a backup buffer.
 void copyFrame(Particle *p_dst, Particle *p_src, const int N)
 {
-#pragma acc parallel loop wait(2) present(p_dst[:N], p_src[:N])
+#pragma acc parallel loop present(p_dst[:N], p_src[:N])
 	for(int i=0; i<N; i++){
 		p_dst[i].pos.x = p_src[i].pos.x;
 		p_dst[i].pos.y = p_src[i].pos.y;
