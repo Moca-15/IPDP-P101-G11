@@ -10,6 +10,6 @@
 
 module load nvhpc/24.9
 
-make >> make.out || exit 1
+make >> make.out >> 1
 
 ./matmul 500 1

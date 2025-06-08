@@ -8,7 +8,7 @@
 
 module load nvhpc/24.9
 
-make managed >> make.out >> 1
+make  >> make.out >> 1
 
 d=500
 ./partis_oacc_uni_mem $d 0

@@ -103,9 +103,9 @@ void integrateEuler(Particle *particles, const int N)
 
 		Particle *p = &particles[i];
 
-		p->pos.x = p->vel.x * DT;
-		p->pos.y = p->vel.y * DT;
-		p->pos.z = p->vel.z * DT;
+		p->pos.x += p->vel.x * DT;
+		p->pos.y += p->vel.y * DT;
+		p->pos.z += p->vel.z * DT;
 
 		double v = sqrt(p->vel.x*p->vel.x + p->vel.y*p->vel.y + p->vel.z*p->vel.z);
 		double k1 = K * v;
