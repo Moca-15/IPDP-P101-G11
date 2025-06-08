@@ -336,12 +336,10 @@ int main(int argc, char *argv[])
     // Call cuBLAS Matrix Multiplication kernel
 	double alpha = 1.0;
 	double beta = 0.0;
-	for(int i = 0; i < 30; i++) {
-		cublasStatus_t st = cublasDgemm(cublas_handle, CUBLAS_OP_N, CUBLAS_OP_N, N, N, N, &alpha, d_B, N, d_A, N, &beta, d_C, N);
-		if(st != CUBLAS_STATUS_SUCCESS) {
-			fprintf(stderr, "CUBLAS error at %s:%d: %d\n", __FILE__, __LINE__, st);
-        	exit(1);
-		}
+	cublasStatus_t st = cublasDgemm(cublas_handle, CUBLAS_OP_N, CUBLAS_OP_N, N, N, N, &alpha, d_B, N, d_A, N, &beta, d_C, N);
+	if(st != CUBLAS_STATUS_SUCCESS) {
+		fprintf(stderr, "CUBLAS error at %s:%d: %d\n", __FILE__, __LINE__, st);
+        exit(1);
 	}
 
     CUDA_CHECK(cudaDeviceSynchronize());
