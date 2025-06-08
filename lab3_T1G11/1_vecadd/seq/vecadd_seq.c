@@ -4,10 +4,13 @@
 #include <time.h>
 #include <math.h>
 
-// TODO
+// DONE
 // Sequential vector addition
 void vecadd_seq(double *A, double *B, double *C, const int N)
 {
+	for(int i=0; i<N; i++){
+		C[i] = A[i] + B[i];
+	}
 }
 
 int main(int argc, char *argv[])
@@ -35,7 +38,11 @@ int main(int argc, char *argv[])
     //
     // Initialize vectors
     //
-    // TODO
+    // DONE
+	for(int i=0; i<N; i++){
+		A[i] = i;
+		B[i] = 2*(N-i);
+	}
 
 
     //
@@ -53,9 +60,15 @@ int main(int argc, char *argv[])
     //
     // Validation
     //
-    // TODO
+    // DONE
     // Validate vector addition
-
+	for(int i=0; i<N; i++){
+		double diff = C[i] - (2*N-i);
+		if(fabs(diff) > 1E-6){
+			printf("Value exeeding tolerance at i=%d (%lf)\n",i,C[i]);
+			break;
+		}
+	}
     //
     // Free memory
     //
