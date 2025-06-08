@@ -98,14 +98,14 @@ void setInitialConditions(Particle *particles, const int N)
 void integrateEuler(Particle *particles, const int N)
 {
 
-#pragma acc parallel loop present(particles[:N]) async(1)
+#pragma acc parallel loop present(particles[:N])
 	for(int i=0; i<N; i++){
 
 		Particle *p = &particles[i];
 
-		p->pos.x = p->vel.x * DT;
-		p->pos.y = p->vel.y * DT;
-		p->pos.z = p->vel.z * DT;
+		p->pos.x += p->vel.x * DT;
+		p->pos.y += p->vel.y * DT;
+		p->pos.z += p->vel.z * DT;
 
 		double v = sqrt(p->vel.x*p->vel.x + p->vel.y*p->vel.y + p->vel.z*p->vel.z);
 		double k1 = K * v;
@@ -121,7 +121,7 @@ void integrateEuler(Particle *particles, const int N)
 // Copy the state of the particles to a backup buffer.
 void copyFrame(Particle *p_dst, Particle *p_src, const int N)
 {
-#pragma acc parallel loop wait(2) async(1)
+#pragma acc parallel loop wait(2) present(p_dst[:N], p_src[:N])
 	for(int i=0; i<N; i++){
 		p_dst[i].pos.x = p_src[i].pos.x;
 		p_dst[i].pos.y = p_src[i].pos.y;
@@ -254,10 +254,11 @@ int main(int argc, char *argv[])
 
     // Start timing
     struct timespec start, end;
-    clock_gettime(CLOCK_MONOTONIC, &start);
-#pragma acc data copyin(particles[0:N]) copyout(pFrame[0:N])
+
+#pragma acc data copyin(particles[:N]) copyout(pFrame[:N])
 {
-#pragma acc update self(pFrame[0:N]) async(2)
+  clock_gettime(CLOCK_MONOTONIC, &start);
+
     while (t <= TOTAL_TIME)
     {
 
@@ -274,18 +275,15 @@ int main(int argc, char *argv[])
 
             copyFrame(pFrame, particles, N);
 
-#pragma acc wait(1) async(2)
-#pragma acc update self(pFrame[:N]) async(2)
-
             if (write_flag)
                 write_solution(pFrame, N, curr_frame_time, filename);
         }
 
         ++iter;
     }
-}
-    clock_gettime(CLOCK_MONOTONIC, &end);
 
+    clock_gettime(CLOCK_MONOTONIC, &end);
+}
     double elapsed = end.tv_sec - start.tv_sec + (end.tv_nsec - start.tv_nsec) / 1e9;
 
     //
