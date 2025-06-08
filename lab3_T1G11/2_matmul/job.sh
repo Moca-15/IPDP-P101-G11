@@ -1,5 +1,7 @@
 #!/bin/bash
 
+#SBATCH --job-name=ex2
+#SBATCH --nodes=1
 #SBATCH -p gpu
 #SBATCH --gres=gpu:1
 #SBATCH --output=out_matmul.out
@@ -10,5 +12,4 @@ module load nvhpc/24.9
 
 make >> make.out || exit 1
 
-./matmul 5 1
-
+./matmul 500 1

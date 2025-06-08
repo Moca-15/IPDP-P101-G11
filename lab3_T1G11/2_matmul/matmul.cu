@@ -5,7 +5,7 @@
 #include <cuda.h>
 #include <cublas_v2.h>
 
-#define DEBUG
+//#define DEBUG
 
 #define BLOCKSIZE 16
 
@@ -50,8 +50,6 @@ void matmul_seq(double *A, double *B, double *C, const int N)
 			val = 0.0;
 		}
 	}
-
-	debug("seq C[0][0] = %f ", C[0]);
 }
 
 
@@ -90,21 +88,15 @@ __global__ void matmul_shared_kernel(double *A, double *B, double *C, const int 
 	int row = threadIdx.y + blockIdx.y * blockDim.y;
 	int col = threadIdx.x + blockIdx.x * blockDim.x;
 
-	int i, k;
+	int i, k, colA_tile, rowB_tile;
 	double val = 0.0;
 
-	if(row >= N || col >= N) return;
-
 	for(i = 0; i < (BLOCKSIZE + N -1)/BLOCKSIZE; i++) {
-		if(i * BLOCKSIZE + threadIdx.x < N && row < N)
-			A_tile[threadIdx.y][threadIdx.x] = A[row*N + i*BLOCKSIZE + threadIdx.x];
-		else
-			A_tile[threadIdx.y][threadIdx.x] = 0.0;
+		colA_tile = i*BLOCKSIZE + threadIdx.x;
+		A_tile[threadIdx.y][threadIdx.x] = (colA_tile < N) ? A[row*N + colA_tile] : 0.0;
 
-		if(i * BLOCKSIZE + threadIdx.y < N && col < N)
-			B_tile[threadIdx.x][threadIdx.y] = B[(i*BLOCKSIZE + threadIdx.y)*N + col];
-		else
-			B_tile[threadIdx.x][threadIdx.y] = 0.0;
+		rowB_tile = i*BLOCKSIZE + threadIdx.y;
+		B_tile[threadIdx.y][threadIdx.x] = (rowB_tile < N) ? B[rowB_tile*N + col] : 0.0;
 
 		__syncthreads();
 
@@ -116,7 +108,6 @@ __global__ void matmul_shared_kernel(double *A, double *B, double *C, const int 
 
 	if(row < N && col < N)
 		C[row*N + col] = val;
-		printf("C[%d][%d] = %f\n", row, col, val);
 
 }
 
@@ -131,7 +122,7 @@ void validation(double *h_C, double *C, const int N)
             if (err > 1.0e-6)
             {
                 printf("Error at C[%d][%d]: fabs( %f - %f ) = %e > %e\n", i, j, h_C[i * N + j], C[i * N + j], err, 1.0e-6);
-//                exit(1);
+                //exit(1);
             }
         }
     }
@@ -227,7 +218,6 @@ int main(int argc, char *argv[])
         }
     }
 
-	debug("matrix init");
 
     //-------------------------------------------------------
     // Sequential
@@ -248,10 +238,6 @@ int main(int argc, char *argv[])
         printf("Sequential and validation deactivated\n");
     }
 
-
-	debug("matmul sequential working fine :)");
-
-
     //
     // GPU computations
     //
@@ -269,14 +255,16 @@ int main(int argc, char *argv[])
 
     // TODO CHECK
     // Define threads per block and blocks in the grid
-	int n_blocks = (N + BLOCKSIZE-1)/BLOCKSIZE;
-	debug("num of blocks = %d ; block size = %d");
+	//int n_blocks = (N + BLOCKSIZE-1)/BLOCKSIZE;
+	dim3 block(BLOCKSIZE, BLOCKSIZE);
+	dim3 grid((N + block.x -1)/block.x, (N + block.y -1)/block.y);
+
 
     CUDA_CHECK(cudaEventRecord(event_start));
 
     // TODO CHECK
     // Launch matmul_naive_kernel
-	matmul_naive_kernel<<<n_blocks,BLOCKSIZE>>>(d_A, d_B, d_C, N);
+	matmul_naive_kernel<<<grid,block>>>(d_A, d_B, d_C, N);
 
     CUDA_CHECK(cudaGetLastError());
     CUDA_CHECK(cudaDeviceSynchronize());
@@ -294,13 +282,10 @@ int main(int argc, char *argv[])
     printf("Naive GPU total time: %.9f seconds\n", total_time_ms / 1000);
     total_time_ms = 0.0;
 
-	debug("matmul naive working fine :)");
 
     // Validate
     if (check)
         validation(h_C, C, N);
-
-	debug("naive validation correct");
 
     //---------------------------------------------------------
     // Shared memory kernel
@@ -313,7 +298,7 @@ int main(int argc, char *argv[])
     CUDA_CHECK(cudaEventRecord(event_start));
     // TODO
     // Launch matmul_shared_kernel
-	matmul_shared_kernel<<<n_blocks,BLOCKSIZE>>>(d_A, d_B, d_C, N);
+	matmul_shared_kernel<<<grid,block>>>(d_A, d_B, d_C, N);
 
     CUDA_CHECK(cudaGetLastError());
     CUDA_CHECK(cudaDeviceSynchronize());
@@ -331,13 +316,9 @@ int main(int argc, char *argv[])
     printf("Shared GPU total time: %.9f seconds\n", total_time_ms / 1000);
     total_time_ms = 0.0;
 
-	debug("matmul tiled working fine :)");
-
     // Validate
     if (check)
         validation(h_C, C, N);
-
-	debug("tiled validation correct");
 
     //------------------------------------------------------
     // cuBLAS
@@ -356,7 +337,7 @@ int main(int argc, char *argv[])
 	double alpha = 1.0;
 	double beta = 0.0;
 	for(int i = 0; i < 30; i++) {
-		cublasStatus_t st = cublasDgemm(cublas_handle, CUBLAS_OP_T, CUBLAS_OP_T, N, N, N, &alpha, d_B, N, d_A, N, &beta, d_C, N);
+		cublasStatus_t st = cublasDgemm(cublas_handle, CUBLAS_OP_N, CUBLAS_OP_N, N, N, N, &alpha, d_B, N, d_A, N, &beta, d_C, N);
 		if(st != CUBLAS_STATUS_SUCCESS) {
 			fprintf(stderr, "CUBLAS error at %s:%d: %d\n", __FILE__, __LINE__, st);
         	exit(1);
@@ -376,8 +357,6 @@ int main(int argc, char *argv[])
     copy_C_D2H(h_C, d_C, bytes, &event_start, &event_end, &total_time_ms, "cuBLAS");
 
     printf("cuBLAS GPU total time: %.9f seconds\n", total_time_ms / 1000);
-
-	debug("matmul cuBLAS working fine :)");
 
     // Validate
     if (check)
